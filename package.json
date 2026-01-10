@@ -1,0 +1,29 @@
+{
+  "name": "sistema-monitoramento-planta",
+  "version": "1.0.0",
+  "description": "Dashboard 3D com Ping Real",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "pkg . --targets node18-win-x64 --output MonitoramentoPlanta"
+  },
+  "pkg": {
+    "assets": [
+      "index.html",
+      "style.css",
+      "*.js",
+      "img/**/*"
+    ]
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ping": "^0.4.4",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

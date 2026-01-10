@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Bahia Etanol | Monitoramento Inteligente</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+        .editor-sidebar.wide { width: 750px !important; right: -780px; }
+        .editor-sidebar.wide.open { right: 0; }
+        
+        .table-input { 
+            background: rgba(15, 23, 42, 0.6); 
+            border: 1px solid #334155; 
+            color: #f8fafc; 
+            padding: 8px 12px; 
+            width: 100%; 
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            transition: 0.2s;
+        }
+        .table-input:focus { border-color: #2dd4bf; outline: none; background: rgba(0,0,0,0.8); }
+
+        .btn-menu-server {
+            width: 100%; display: flex; align-items: center; gap: 10px; 
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); 
+            color: white; padding: 12px; margin-top: 10px; border-radius: 10px; 
+            cursor: pointer; text-align: left; transition: all 0.2s;
+        }
+        .btn-menu-server:hover { background: rgba(45, 212, 191, 0.1); border-color: #2dd4bf; color: #2dd4bf; }
+        
+        /* Cor diferente para o menu Topologia */
+        .btn-menu-topo:hover { background: rgba(168, 85, 247, 0.1); border-color: #a855f7; color: #a855f7; }
+
+        .editor-body::-webkit-scrollbar { width: 6px; }
+        .editor-body::-webkit-scrollbar-track { background: #0f172a; }
+        .editor-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="modern-dashboard">
+        
+        <aside class="glass-sidebar" id="sidebar">
+            <div class="logo-area">
+                <div class="icon-box"><i class="fas fa-microchip"></i></div>
+                <div class="title-box">
+                    <h1>BAHIA ETANOL</h1>
+                    <span class="badge">LIVE MONITOR</span>
+                </div>
+            </div>
+
+            <div class="system-health">
+                <div class="health-item">
+                    <label>Status Global</label>
+                    <div class="status-indicator">
+                        <span class="dot active" id="status-dot"></span>
+                        <strong id="global-text">ESTÁVEL</strong>
+                    </div>
+                </div>
+                <div class="health-item">
+                    <label>Verificação de Rede</label>
+                    <div class="progress-bar"><div class="fill" id="ping-bar" style="width: 100%"></div></div>
+                    <small id="last-update" style="color:#64748b; font-size:10px; margin-top:5px; display:block">Carregando...</small>
+                </div>
+            </div>
+
+            <div class="menu-section" style="margin-bottom: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+                <label style="font-size:11px; color:#94a3b8; font-weight:700; text-transform:uppercase;">Administração</label>
+                
+                <button onclick="toggleServerPanel()" class="btn-menu-server">
+                    <i class="fas fa-server"></i> SERVIDORES E IPs
+                </button>
+
+                <button onclick="toggleDevicePanel()" class="btn-menu-server">
+                    <i class="fas fa-print"></i> GERENCIAR EQUIPAMENTOS
+                </button>
+
+                <button onclick="toggleTopologyPanel()" class="btn-menu-server btn-menu-topo">
+                    <i class="fas fa-bezier-curve"></i> TOPOLOGIA DE REDE
+                </button>
+
+                <button onclick="toggleHistoryPanel()" class="btn-menu-server">
+                    <i class="fas fa-history"></i> HISTÓRICO DE QUEDAS
+                </button>
+                
+                <button onclick="toggleSimPanel()" class="btn-menu-server">
+                    <i class="fas fa-heartbeat"></i> STATUS TEMPO REAL
+                </button>
+            </div>
+
+            <div id="sector-info" class="sector-details hidden">
+                <h3><i class="fas fa-info-circle"></i> Detalhes do Ponto</h3>
+                <p id="sector-name">...</p>
+                <small id="sector-ip" style="color:#2dd4bf">IP: ...</small>
+                <div style="margin-top:10px; font-size:11px;" id="sector-status-msg"></div>
+            </div>
+
+            <div class="sidebar-footer">
+                <p>Sistema Integrado</p>
+                <small>v7.2 - DB Topology</small>
+            </div>
+        </aside>
+
+        <button class="mobile-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+
+        <main class="viewport-area">
+            <div class="top-nav">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Pesquisar ponto...">
+                </div>
+                </div>
+
+            <div id="canvas-3d"></div>
+
+            <div class="floating-legend">
+                <div class="leg"><span class="line data"></span> Online</div>
+                <div class="leg"><span class="line error"></span> Offline/Alerta</div>
+            </div>
+        </main>
+        
+        </div>
+    
+    <script src="script.js"></script>            
+    <script src="server_manager.js"></script>    
+    <script src="device_manager.js"></script>
+    <script src="history_manager.js"></script>   
+    <script src="simulation_manager.js"></script>
+    <script src="topology_manager.js"></script> <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('mobile-open');
+        }
+    </script>
+</body>
+</html>
