@@ -46,7 +46,6 @@
         }
         .btn-menu-server:hover { background: rgba(45, 212, 191, 0.1); border-color: #2dd4bf; color: #2dd4bf; }
         
-        /* Cor diferente para o menu Topologia */
         .btn-menu-topo:hover { background: rgba(168, 85, 247, 0.1); border-color: #a855f7; color: #a855f7; }
 
         .editor-body::-webkit-scrollbar { width: 6px; }
@@ -126,7 +125,7 @@
                     <i class="fas fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Pesquisar ponto...">
                 </div>
-                </div>
+            </div>
 
             <div id="canvas-3d"></div>
 
@@ -136,14 +135,44 @@
             </div>
         </main>
         
+    </div>
+
+    <div id="box-panel" class="editor-sidebar">
+        <div class="editor-header" style="background: rgba(249, 115, 22, 0.1);">
+            <h3 style="color: #fb923c;"><i class="fas fa-box-open"></i> Caixa de Passagem</h3>
+            <button class="close-btn" onclick="closeBoxPanel()"><i class="fas fa-times"></i></button>
         </div>
+        
+        <div class="editor-body">
+            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; margin-bottom:15px;">
+                <p style="color:#94a3b8; font-size:12px;">Localização Técnica:</p>
+                <div id="box-location-info" style="color:#e2e8f0; font-weight:bold; margin-bottom:10px;">-</div>
+                
+                <div id="box-status-badge" style="padding:5px 10px; border-radius:4px; font-size:12px; text-align:center; font-weight:bold;">
+                    Calculando...
+                </div>
+            </div>
+
+            <label style="color:#cbd5e1; font-size:12px;">Última Limpeza/Verificação:</label>
+            <input type="date" id="box-date-input" class="table-input" style="width:100%; margin-top:5px;">
+
+            <label style="color:#cbd5e1; font-size:12px; margin-top:15px; display:block;">Observações:</label>
+            <textarea id="box-notes-input" class="table-input" rows="4" style="width:100%; margin-top:5px;"></textarea>
+
+            <button onclick="saveBoxMaintenance()" class="btn-resolve" style="background:#fb923c; color:white; margin-top:20px; width:100%;">
+                <i class="fas fa-save"></i> Registrar Manutenção
+            </button>
+        </div>
+    </div>
     
-    <script src="script.js"></script>            
     <script src="server_manager.js"></script>    
     <script src="device_manager.js"></script>
     <script src="history_manager.js"></script>   
     <script src="simulation_manager.js"></script>
-    <script src="topology_manager.js"></script> <script>
+    <script src="topology_manager.js"></script>
+    <script src="box_manager.js"></script> <script src="script.js"></script> 
+
+    <script>
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('mobile-open');
         }

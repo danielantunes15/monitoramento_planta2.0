@@ -2,7 +2,8 @@ let scene, camera, renderer, labelRenderer, controls;
 let cables = [];
 let interactables = []; 
 let networkData = [];
-let pulsingRings = []; 
+let pulsingRings = [];    // Anéis dos prédios
+let activeBoxRings = [];  // [NOVO] Anéis das caixas vencidas
 let floorMesh = null; 
 
 const socket = io();
@@ -50,6 +51,7 @@ function init() {
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     
+    // Globais do HTML (R128)
     labelRenderer = new THREE.CSS2DRenderer();
     labelRenderer.setSize(container.clientWidth, container.clientHeight);
     labelRenderer.domElement.style.position = 'absolute';
@@ -89,7 +91,6 @@ function init() {
         }
     });
 
-    // [NOVO] Atualiza cores das caixas quando houver manutenção
     socket.on('maintenance-update', () => {
         if(window.loadMaintenanceData) window.loadMaintenanceData();
     });
@@ -104,7 +105,7 @@ function init() {
 
 window.update3DCables = function(dbLinks) {
     activeLinks = dbLinks.map(l => ({ 
-        id: l.id, // ID para salvar manutenção
+        id: l.id,
         from: l.from_sector, 
         to: l.to_sector,
         waypoints: l.waypoints 
@@ -112,7 +113,6 @@ window.update3DCables = function(dbLinks) {
     renderCables();
 }
 
-// [NOVO] Função global para repintar caixas (chamada pelo box_manager)
 window.refreshBoxColors = function() {
     renderCables();
 };
@@ -143,8 +143,7 @@ function createEnvironment() {
 
 function renderStructures() {
     const geoNormal = new THREE.BoxGeometry(1, 1, 1);
-    const ringGeo = new THREE.RingGeometry(2.5, 3.5, 32); 
-
+    
     SETORES.forEach(s => {
         const mat = new THREE.MeshPhysicalMaterial({ 
             color: 0x1e293b, 
@@ -169,7 +168,7 @@ function renderStructures() {
         mesh.userData.lineObj = line; 
 
         const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0, side: THREE.DoubleSide });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.5, 32), ringMat);
         ring.rotation.x = -Math.PI / 2;
         ring.position.set(s.pos.x, 0.2, s.pos.z);
         ring.visible = false;
@@ -220,12 +219,12 @@ function renderStructures() {
 function renderCables() {
     cables.forEach(obj => scene.remove(obj));
     cables = [];
+    activeBoxRings = []; // Limpa lista de anéis de caixas para recriar
 
     activeLinks.forEach(link => {
         const s1 = SETORES.find(s => s.id === link.from);
         const s2 = SETORES.find(s => s.id === link.to);
         if (s1 && s2) {
-            // [ATUALIZADO] Passando ID do link
             drawCable(s1.pos, s2.pos, link.from, link.to, link.waypoints, link.id);
         }
     });
@@ -265,20 +264,18 @@ function drawCable(p1, p2, idFrom, idTo, waypoints, linkIdDB) {
     scene.add(tube);
     cables.push(tube);
 
-    // [NOVO] DESENHAR CAIXAS DE PASSAGEM COM CORES DE STATUS
     if (waypoints && waypoints.length > 0) {
         const boxGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
         
         waypoints.forEach((wp, index) => {
-            // Verifica status da manutenção
             let status = 'UNKNOWN';
             if(window.getBoxStatus) {
                 status = window.getBoxStatus(linkIdDB, index);
             }
 
-            let boxColor = 0xfacc15; // Laranja (Padrão/Sem registro)
-            if (status === 'EXPIRED') boxColor = 0xff0000; // Vermelho (Vencido)
-            if (status === 'OK') boxColor = 0x22c55e; // Verde (Em dia)
+            let boxColor = 0xfacc15; 
+            if (status === 'EXPIRED') boxColor = 0xff0000; 
+            if (status === 'OK') boxColor = 0x22c55e; 
 
             const boxMat = new THREE.MeshStandardMaterial({ 
                 color: boxColor, 
@@ -292,7 +289,6 @@ function drawCable(p1, p2, idFrom, idTo, waypoints, linkIdDB) {
             const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
             box.add(line);
             
-            // Dados para o clique
             box.userData = { 
                 isBox: true, 
                 linkId: linkIdDB, 
@@ -301,6 +297,22 @@ function drawCable(p1, p2, idFrom, idTo, waypoints, linkIdDB) {
                 toName: idTo
             }; 
             
+            // [NOVO] Se estiver VENCIDO, cria anel piscante
+            if (status === 'EXPIRED') {
+                const ringGeo = new THREE.RingGeometry(0.8, 1.2, 32);
+                const ringMat = new THREE.MeshBasicMaterial({ 
+                    color: 0xff0000, 
+                    transparent: true, 
+                    opacity: 0.8, 
+                    side: THREE.DoubleSide 
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.set(0, -0.2, 0); 
+                box.add(ring);
+                activeBoxRings.push(ring); // Adiciona na lista de animação
+            }
+
             scene.add(box);
             cables.push(box);
         });
@@ -336,30 +348,29 @@ function updateVisuals(serverData) {
     interactables.forEach(mesh => {
         if(mesh.userData.type === 'building') {
             const info = statusMap[mesh.userData.id] || { status: 'OK' };
-            const ring = pulsingRings.find(r => r.userData.id === mesh.userData.id);
+            const qh = pulsingRings.find(r => r.userData.id === mesh.userData.id);
             const warnDom = mesh.userData.warningIconDom;
 
             if(INTERSECTED !== mesh) mesh.material.color.setHex(0x1e293b);
             if(mesh.userData.lineObj) mesh.userData.lineObj.material.color.setHex(0x38bdf8);
-            if(ring) ring.visible = false;
+            if(qh) qh.visible = false;
             if(warnDom) warnDom.style.display = 'none';
 
             if (info.status === 'CRITICAL') {
                 mesh.material.color.setHex(0xff0000); 
                 if(mesh.userData.lineObj) mesh.userData.lineObj.material.color.setHex(0xff0000);
-                if(ring) { ring.material.color.setHex(0xff0000); ring.visible = true; }
+                if(qh) { qh.material.color.setHex(0xff0000); qh.visible = true; }
             } 
             else if (info.status === 'WARNING') {
                 mesh.material.color.setHex(0xffaa00);
                 if(mesh.userData.lineObj) mesh.userData.lineObj.material.color.setHex(0xfacc15);
-                if(ring) { ring.material.color.setHex(0xffff00); ring.visible = true; }
+                if(qh) { qh.material.color.setHex(0xffff00); qh.visible = true; }
                 if(warnDom) warnDom.style.display = 'block';
             }
         }
     });
 
     cables.forEach(obj => {
-        // [MODIFICADO] Só muda cor de cabos (Tubos), não de Caixas (que tem userData.isBox)
         if (obj.userData.isCable && !obj.userData.isBox) {
             if(obj.geometry.type === 'TubeGeometry') {
                 const fs = statusMap[obj.userData.from]?.status;
@@ -410,7 +421,6 @@ function clearDrawingMarkers() {
 
 function onDocumentMouseDown(event) {
     if (!isDrawing) {
-        // [NOVO] Verifica clique em CAIXAS DE PASSAGEM primeiro
         raycaster.setFromCamera(mouse, camera);
         const hitsCables = raycaster.intersectObjects(cables);
         
@@ -425,11 +435,10 @@ function onDocumentMouseDown(event) {
                         target.userData.toName
                     );
                 }
-                return; // Para aqui, não abre info do setor
+                return; 
             }
         }
 
-        // Se não clicou em caixa, verifica prédios
         const hitsInteract = raycaster.intersectObjects(interactables);
         if(hitsInteract.length > 0) {
             INTERSECTED = hitsInteract[0].object;
@@ -466,17 +475,14 @@ function onDocumentMouseDown(event) {
         return;
     }
 
-    // LÓGICA DO MODO DESENHO
     raycaster.setFromCamera(mouse, camera);
     const hitsBuildings = raycaster.intersectObjects(interactables);
     const hitsFloor = floorMesh ? raycaster.intersectObject(floorMesh) : [];
 
-    // 1. Clique em Prédio (Origem ou Destino)
     if (hitsBuildings.length > 0) {
         const sector = hitsBuildings[0].object.userData;
         
         if (!drawStartSector) {
-            // Definiu Origem
             drawStartSector = sector;
             console.log("Origem definida:", sector.name);
             
@@ -486,7 +492,6 @@ function onDocumentMouseDown(event) {
             drawingMarkers.push(m);
             
         } else {
-            // Definiu Destino -> SALVAR
             const endSector = sector;
             if (endSector.id === drawStartSector.id) return; 
 
@@ -503,7 +508,6 @@ function onDocumentMouseDown(event) {
         return;
     }
 
-    // 2. Clique no Chão (Adiciona Caixa de Passagem)
     if (drawStartSector && hitsFloor.length > 0) {
         const p = hitsFloor[0].point;
         drawPoints.push({ x: p.x, z: p.z });
@@ -550,6 +554,7 @@ function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.003; 
     
+    // Anima anéis dos prédios
     pulsingRings.forEach(ring => {
         if(ring.visible) {
             const scale = 1 + (Math.sin(time) * 0.3 + 0.3);
@@ -558,8 +563,14 @@ function animate() {
         }
     });
 
+    // [NOVO] Anima anéis das caixas vencidas
+    activeBoxRings.forEach(ring => {
+        const scale = 1 + (Math.sin(time * 2) * 0.3 + 0.3); // Mais rápido
+        ring.scale.set(scale, scale, 1);
+        ring.material.opacity = 0.8 - (Math.sin(time * 2) * 0.4 + 0.4);
+    });
+
     raycaster.setFromCamera(mouse, camera);
-    // Raycast apenas para hover de prédios quando não estiver desenhando
     const hits = raycaster.intersectObjects(interactables);
     const statusMap = finalSectorStatus || {};
     
@@ -589,7 +600,6 @@ function animate() {
         }
         INTERSECTED = null;
         
-        // Se estiver sobre uma caixa de passagem, mudar cursor também
         const hitsCables = raycaster.intersectObjects(cables);
         const onBox = hitsCables.some(h => h.object.userData && h.object.userData.isBox);
         

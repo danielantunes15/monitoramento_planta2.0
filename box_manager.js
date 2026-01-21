@@ -1,4 +1,3 @@
-// box_manager.js
 let maintenanceData = [];
 let currentBoxId = null; // { linkId, index }
 
