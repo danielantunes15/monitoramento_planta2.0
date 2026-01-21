@@ -1,14 +1,11 @@
 const API_URL_TOPO = ''; // Relativo
 
-// Lista de opções para os selects (Pode ser dinâmica também, mas por hora usamos a constante global do script.js ou definida aqui)
-// Para garantir, vamos buscar do HTML quando o painel abrir, ou usar uma lista fixa se preferir.
 let cachedLinks = [];
 
 window.toggleTopologyPanel = function() {
     const panel = document.getElementById('topology-panel');
     const wasOpen = panel.classList.contains('open');
     
-    // Fecha outros painéis
     document.querySelectorAll('.editor-sidebar').forEach(el => el.classList.remove('open'));
     
     if (!wasOpen) {
@@ -25,7 +22,6 @@ async function loadLinksData() {
         cachedLinks = data;
         renderLinksTable();
         
-        // Atualiza o 3D também (caso tenha mudado algo externamente)
         if(window.update3DCables) {
             window.update3DCables(data);
         }
@@ -62,6 +58,7 @@ function renderLinksTable() {
     });
 }
 
+// Salvar link manual (dropdown)
 window.addLinkDB = async function() {
     const from = document.getElementById('from-sector-db').value;
     const to = document.getElementById('to-sector-db').value;
@@ -69,27 +66,40 @@ window.addLinkDB = async function() {
     if(from === to) return alert("Origem e Destino são iguais.");
     if(!from || !to) return alert("Selecione os dois pontos.");
 
-    // Verifica duplicidade local antes de enviar
+    // Verifica duplicidade
     const exists = cachedLinks.some(l => 
         (l.from_sector === from && l.to_sector === to) || 
         (l.from_sector === to && l.to_sector === from)
     );
     if(exists) return alert("Essa conexão já existe.");
 
+    // Salva com waypoints vazio (reta)
+    saveCustomLink(from, to, []);
+};
+
+// [NOVO] Função genérica para salvar (usada pelo desenho 3D também)
+window.saveCustomLink = async function(from, to, waypoints) {
     try {
+        const body = {
+            from_sector: from,
+            to_sector: to,
+            waypoints: waypoints
+        };
+
         const res = await fetch(`${API_URL_TOPO}/links`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ from_sector: from, to_sector: to })
+            body: JSON.stringify(body)
         });
         
         if(res.ok) {
-            loadLinksData(); // Recarrega lista
+            loadLinksData();
+            if(waypoints.length > 0) alert("Rota desenhada salva com sucesso!");
         } else {
             alert("Erro ao salvar.");
         }
     } catch (e) { alert("Erro de conexão."); }
-};
+}
 
 window.deleteLinkDB = async function(id) {
     if(!confirm("Remover esta conexão física?")) return;
@@ -100,7 +110,6 @@ window.deleteLinkDB = async function(id) {
 };
 
 function initTopologyEditor() {
-    // Popula os Selects com os setores disponíveis no 3D (window.SETORES deve estar acessível globalmente do script.js)
     const s1 = document.getElementById('from-sector-db');
     const s2 = document.getElementById('to-sector-db');
     
@@ -115,7 +124,7 @@ function initTopologyEditor() {
     }
 }
 
-// Configura o Painel HTML na inicialização
+// Configura o Painel HTML
 document.addEventListener('DOMContentLoaded', () => {
     if (!document.getElementById('topology-panel')) {
         const panelHTML = `
@@ -127,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             <div class="editor-body">
                 <p style="font-size:12px; color:#94a3b8; margin-bottom:15px;">
-                    Defina como os switches estão conectados fisicamente (backbone).
+                    Defina conexões via dropdown ou desenhe no chão.
                 </p>
 
                 <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
@@ -137,8 +146,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         <select id="to-sector-db" class="table-input"></select>
                     </div>
                     <button onclick="addLinkDB()" class="btn-resolve" style="background:#a855f7; color:white; margin-top:10px; width:100%;">
-                        <i class="fas fa-plus"></i> Adicionar Cabo
+                        <i class="fas fa-plus"></i> Adicionar Cabo (Direto)
                     </button>
+                    
+                    <div style="text-align:center; margin:10px 0; color:#64748b; font-size:10px;">— OU —</div>
+
+                    <button onclick="window.startCableDrawing()" class="btn-resolve" style="background:#3b82f6; color:white; width:100%;">
+                        <i class="fas fa-pen"></i> Desenhar Rota no Mapa
+                    </button>
+                    <p style="font-size:10px; color:#94a3b8; margin-top:5px; text-align:center;">
+                        Clique na Origem -> Clique no Chão -> Clique no Destino
+                    </p>
                 </div>
 
                 <div style="margin-top: 20px;">

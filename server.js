@@ -19,7 +19,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '/')));
 
 // --- CONFIGURAÇÃO ---
-const PING_INTERVAL = 10 * 1000; // Atualiza a cada 10 segundos
+const PING_INTERVAL = 10 * 1000; 
 const PING_CONFIG = {
     timeout: 2, 
     extra: ['-i', '1'] 
@@ -28,7 +28,7 @@ const PING_CONFIG = {
 // Cache em memória
 let cachedStatus = [];
 
-// Dados de Backup (caso o banco falhe)
+// Dados de Backup
 const FALLBACK_DATA = [
     { id: 'REFEITORIO', name: 'Refeitório', ip: '192.168.39.1' },
     { id: 'CPD', name: 'CPD', ip: '192.168.36.53' },
@@ -41,14 +41,11 @@ const FALLBACK_DATA = [
     { id: 'VINHACA', name: 'Vinhaça', ip: '192.168.36.20' }
 ];
 
-// --- FUNÇÃO DE PING OTIMIZADA (PARALELA) ---
+// --- FUNÇÃO DE PING OTIMIZADA ---
 async function runPingCycle() {
-    // console.log(`\n[${new Date().toLocaleTimeString()}] Iniciando Ping...`);
-    
     let hosts = [];
     let allDevices = [];
 
-    // 1. Busca Dados do Banco
     try { 
         const { data: hostData } = await supabase.from('hosts').select('*').order('name');
         hosts = (hostData && hostData.length > 0) ? hostData : FALLBACK_DATA;
@@ -61,9 +58,7 @@ async function runPingCycle() {
 
     const checkTime = new Date().toLocaleString('pt-BR'); 
 
-    // 2. Dispara Pings em Paralelo (Promise.all)
     const promises = hosts.map(async (host) => {
-        // A. Ping no Switch Principal
         let hostAlive = false;
         let hostLatency = 'timeout';
         const hostIp = host.ip ? host.ip.trim() : null;
@@ -76,9 +71,7 @@ async function runPingCycle() {
             } catch (err) { hostAlive = false; }
         }
 
-        // B. Ping nos Dispositivos do Setor
         const sectorDevices = allDevices.filter(d => d.sector_id === host.id);
-        
         const devicePromises = sectorDevices.map(async (dev) => {
             let devAlive = false;
             if(dev.ip) {
@@ -95,18 +88,12 @@ async function runPingCycle() {
         });
 
         const deviceStatuses = await Promise.all(devicePromises);
-
-        // C. Define Status (OK / WARNING / CRITICAL)
         const anyDeviceDown = deviceStatuses.some(d => !d.online);
         let status = 'OK';
 
-        if (!hostAlive) {
-            status = 'CRITICAL'; 
-        } else if (anyDeviceDown) {
-            status = 'WARNING'; 
-        }
+        if (!hostAlive) status = 'CRITICAL'; 
+        else if (anyDeviceDown) status = 'WARNING'; 
 
-        // D. Log de Histórico
         const previous = cachedStatus.find(c => c.id === host.id);
         const prevStatus = previous ? previous.status : 'OK';
 
@@ -127,15 +114,11 @@ async function runPingCycle() {
         };
     });
 
-    // Aguarda todos terminarem
     const results = await Promise.all(promises);
     cachedStatus = results;
-    
-    // Envia para o Front-end via Socket
     io.emit('update', results);
 }
 
-// Inicia o Loop
 runPingCycle();
 setInterval(runPingCycle, PING_INTERVAL);
 
@@ -185,35 +168,67 @@ app.delete('/history', async (req, res) => {
     res.json({ success: true });
 });
 
-// --- NOVAS ROTAS DE TOPOLOGIA (LINKS/CABOS) ---
+// --- ROTAS DE TOPOLOGIA (LINKS/CABOS) ---
 app.get('/links', async (req, res) => {
-    const { data, error } = await supabase.from('links').select('*');
+    const { data, error } = await supabase.from('links_custom').select('*');
     if(error) return res.status(500).json([]);
     res.json(data || []);
 });
 
 app.post('/links', async (req, res) => {
-    const { error } = await supabase.from('links').insert(req.body);
+    const { error } = await supabase.from('links_custom').insert(req.body);
     if(error) return res.status(500).json({error: error.message});
     
-    // Avisa todos os clientes para redesenhar os cabos
-    const { data } = await supabase.from('links').select('*');
+    const { data } = await supabase.from('links_custom').select('*');
     io.emit('topology-update', data);
-    
     res.json({ success: true });
 });
 
 app.delete('/links/:id', async (req, res) => {
-    const { error } = await supabase.from('links').delete().eq('id', req.params.id);
+    const { error } = await supabase.from('links_custom').delete().eq('id', req.params.id);
     if(error) return res.status(500).json({error: error.message});
 
-    // Avisa todos os clientes
-    const { data } = await supabase.from('links').select('*');
+    const { data } = await supabase.from('links_custom').select('*');
     io.emit('topology-update', data);
-
     res.json({ success: true });
 });
 
+// --- [NOVO] ROTAS PARA MANUTENÇÃO DE CAIXAS ---
+app.get('/maintenance', async (req, res) => {
+    const { data, error } = await supabase.from('box_maintenance').select('*');
+    if(error) return res.status(500).json([]);
+    res.json(data || []);
+});
+
+app.post('/maintenance', async (req, res) => {
+    const { link_id, box_index, last_cleaned, notes } = req.body;
+
+    const { data: existing } = await supabase
+        .from('box_maintenance')
+        .select('id')
+        .eq('link_id', link_id)
+        .eq('box_index', box_index)
+        .single();
+
+    let error;
+    if (existing) {
+        const resUpdate = await supabase
+            .from('box_maintenance')
+            .update({ last_cleaned, notes, updated_at: new Date() })
+            .eq('id', existing.id);
+        error = resUpdate.error;
+    } else {
+        const resInsert = await supabase
+            .from('box_maintenance')
+            .insert({ link_id, box_index, last_cleaned, notes });
+        error = resInsert.error;
+    }
+
+    if (error) return res.status(500).json({ error: error.message });
+    
+    io.emit('maintenance-update');
+    res.json({ success: true });
+});
 
 // Função Auxiliar de Log
 async function logHistory(sectorId, reason) {
@@ -229,8 +244,6 @@ async function logHistory(sectorId, reason) {
 // INICIALIZAÇÃO
 server.listen(3000, () => {
     console.log('--- SISTEMA ONLINE NA PORTA 3000 ---');
-    
-    // Abre o navegador automaticamente
     const url = 'http://localhost:3000';
     const start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
     exec(`${start} ${url}`);
