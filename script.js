@@ -1,11 +1,14 @@
+// ATENÇÃO: SEM IMPORTS! Usamos as globais carregadas no HTML.
+
 let scene, camera, renderer, labelRenderer, controls;
 let cables = [];
 let interactables = []; 
 let networkData = [];
 let pulsingRings = [];    // Anéis dos prédios
-let activeBoxRings = [];  // [NOVO] Anéis das caixas vencidas
+let activeBoxRings = [];  // Anéis das caixas vencidas
 let floorMesh = null; 
 
+// Socket Initialization
 const socket = io();
 
 const raycaster = new THREE.Raycaster();
@@ -18,6 +21,7 @@ let drawStartSector = null;
 let drawPoints = [];
 let drawingMarkers = []; 
 
+// Disponibiliza SETORES globalmente
 window.SETORES = [
     { id: "PORTARIA", name: "Portaria", pos: { x: 21, z: 55 }, size: [3, 3, 3] },
     { id: "BALANCA", name: "Balança", pos: { x: 12, z: 51 }, size: [4, 3, 4] },
@@ -51,7 +55,7 @@ function init() {
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     
-    // Globais do HTML (R128)
+    // Na versão r128 via CDN, é THREE.CSS2DRenderer
     labelRenderer = new THREE.CSS2DRenderer();
     labelRenderer.setSize(container.clientWidth, container.clientHeight);
     labelRenderer.domElement.style.position = 'absolute';
@@ -59,6 +63,7 @@ function init() {
     labelRenderer.domElement.style.pointerEvents = 'none'; 
     container.appendChild(labelRenderer.domElement);
     
+    // Na versão r128 via CDN, é THREE.OrbitControls
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -116,6 +121,44 @@ window.update3DCables = function(dbLinks) {
 window.refreshBoxColors = function() {
     renderCables();
 };
+
+// [NOVO] Função Inteligente de Proximidade
+// Retorna uma lista de caixas que estão muito próximas da caixa clicada
+window.getNearbyBoxes = function(targetLinkId, targetIndex) {
+    let targetBox = null;
+    let allBoxes = [];
+
+    // Filtra apenas objetos que são Caixas
+    cables.forEach(obj => {
+        if (obj.userData && obj.userData.isBox) {
+            allBoxes.push(obj);
+            // Identifica a caixa "Original" que foi clicada
+            if (obj.userData.linkId == targetLinkId && obj.userData.index == targetIndex) {
+                targetBox = obj;
+            }
+        }
+    });
+
+    if (!targetBox) return [];
+
+    const nearbyList = [];
+    const THRESHOLD = 2.0; // Distância (em "metros" do 3D) para considerar a mesma caixa
+
+    allBoxes.forEach(box => {
+        // Calcula distancia entre a caixa clicada e as outras
+        const dist = box.position.distanceTo(targetBox.position);
+        
+        // Se for perto o suficiente (ou ela mesma), adiciona na lista de atualização
+        if (dist <= THRESHOLD) {
+            nearbyList.push({
+                link_id: box.userData.linkId,
+                box_index: box.userData.index
+            });
+        }
+    });
+
+    return nearbyList;
+}
 
 function createEnvironment() {
     const textureLoader = new THREE.TextureLoader();
@@ -297,7 +340,7 @@ function drawCable(p1, p2, idFrom, idTo, waypoints, linkIdDB) {
                 toName: idTo
             }; 
             
-            // [NOVO] Se estiver VENCIDO, cria anel piscante
+            // Anel Piscante para VENCIDOS
             if (status === 'EXPIRED') {
                 const ringGeo = new THREE.RingGeometry(0.8, 1.2, 32);
                 const ringMat = new THREE.MeshBasicMaterial({ 
@@ -310,7 +353,7 @@ function drawCable(p1, p2, idFrom, idTo, waypoints, linkIdDB) {
                 ring.rotation.x = -Math.PI / 2;
                 ring.position.set(0, -0.2, 0); 
                 box.add(ring);
-                activeBoxRings.push(ring); // Adiciona na lista de animação
+                activeBoxRings.push(ring); 
             }
 
             scene.add(box);
@@ -563,9 +606,9 @@ function animate() {
         }
     });
 
-    // [NOVO] Anima anéis das caixas vencidas
+    // Anima anéis das caixas vencidas (Alerta)
     activeBoxRings.forEach(ring => {
-        const scale = 1 + (Math.sin(time * 2) * 0.3 + 0.3); // Mais rápido
+        const scale = 1 + (Math.sin(time * 2) * 0.3 + 0.3); // Pisca mais rápido
         ring.scale.set(scale, scale, 1);
         ring.material.opacity = 0.8 - (Math.sin(time * 2) * 0.4 + 0.4);
     });

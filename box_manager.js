@@ -76,28 +76,44 @@ window.saveBoxMaintenance = async function() {
 
     if (!dateVal) return alert("Selecione uma data.");
 
-    const payload = {
-        link_id: currentBoxId.linkId,
-        box_index: currentBoxId.index,
-        last_cleaned: dateVal,
-        notes: notesVal
-    };
+    // [INTELIGÊNCIA] 1. Descobre quais caixas estão perto (incluindo a atual)
+    let targets = [];
+    if (window.getNearbyBoxes) {
+        targets = window.getNearbyBoxes(currentBoxId.linkId, currentBoxId.index);
+    } else {
+        // Fallback se não tiver a função 3D carregada
+        targets = [{ link_id: currentBoxId.linkId, box_index: currentBoxId.index }];
+    }
 
-    try {
-        const res = await fetch('/maintenance', {
+    // 2. Envia atualização para TODAS elas em paralelo
+    const promises = targets.map(t => {
+        const payload = {
+            link_id: t.link_id,
+            box_index: t.box_index,
+            last_cleaned: dateVal,
+            notes: notesVal
+        };
+        return fetch('/maintenance', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
+    });
+
+    try {
+        await Promise.all(promises);
         
-        if (res.ok) {
-            alert("Manutenção registrada!");
-            loadMaintenanceData(); // Recarrega dados e cores
-            closeBoxPanel();
-        } else {
-            alert("Erro ao salvar.");
-        }
-    } catch(e) { alert("Erro de conexão."); }
+        const msg = targets.length > 1 
+            ? `Manutenção registrada para ${targets.length} caixas próximas!` 
+            : "Manutenção registrada!";
+            
+        alert(msg);
+        loadMaintenanceData();
+        closeBoxPanel();
+    } catch(e) { 
+        alert("Erro ao salvar."); 
+        console.error(e);
+    }
 };
 
 window.closeBoxPanel = function() {
