@@ -33,7 +33,7 @@ const FALLBACK_DATA = [
     { id: 'REFEITORIO', name: 'Refeitório', ip: '192.168.39.1' },
     { id: 'CPD', name: 'CPD', ip: '192.168.36.53' },
     { id: 'OLD', name: 'OLD', ip: '192.168.36.60' },
-    { id: 'SUPERVISAO', name: 'Supervisão', ip: '192.168.36.14' },
+    { id: 'OBEYA', name: 'OBEYA', ip: '192.168.36.14' },
     { id: 'COI', name: 'COI', ip: '192.168.36.15' },
     { id: 'PCTS', name: 'PCTS', ip: '192.168.36.17' },
     { id: 'BALANCA', name: 'Balança', ip: '192.168.36.18' },

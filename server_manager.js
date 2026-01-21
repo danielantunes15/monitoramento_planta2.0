@@ -2,14 +2,14 @@ const API_URL = ''; // Alterado para vazio
 
 const DEFAULT_HOSTS = [
     { id: 'REFEITORIO', name: 'Refeitório', equipment: '01 Switch Mikrotik - SW1 - Refeitório', ip: '192.168.39.1' },
-    { id: 'CPD', name: 'CPD', equipment: '01 Switch Mikrotik - SW1 Administrativo', ip: '192.168.36.53' },
+    { id: 'ADM', name: 'ADM', equipment: '01 Switch Mikrotik - SW1 Administrativo', ip: '192.168.36.53' },
     { id: 'OLD', name: 'OLD', equipment: '01 Switch Mikrotik CSS326-24G-2S+RM', ip: '192.168.36.60' },
-    { id: 'SUPERVISAO', name: 'Supervisão', equipment: '01 Switch Baseline 3com 2928-PWR OFICINA', ip: '192.168.36.14' },
+    { id: 'OBEYA', name: 'OBEYA', equipment: '01 Switch Baseline 3com 2928-PWR OFICINA', ip: '192.168.36.14' },
     { id: 'COI', name: 'COI', equipment: '01 Switch Baseline 3com 2928-PWR COI', ip: '192.168.36.15' },
     { id: 'PCTS', name: 'PCTS', equipment: '01 Switch Baseline 3com 2928-PWR PCTS', ip: '192.168.36.17' },
     { id: 'BALANCA', name: 'Balança', equipment: '01 Switch Baseline 3com 2928-PWR BALANÇA', ip: '192.168.36.18' },
     { id: 'PORTARIA', name: 'Portaria', equipment: 'Switch Portaria', ip: '192.168.36.19' },
-    { id: 'VINHACA', name: 'Vinhaça', equipment: 'Rádio Link', ip: '192.168.36.20' }
+    { id: 'CCM', name: 'CCM', equipment: 'Rádio Link', ip: '192.168.36.20' }
 ];
 
 let currentHosts = [...DEFAULT_HOSTS]; 

@@ -15,14 +15,14 @@ let INTERSECTED;
 // (Adicionado "window.SETORES =" para que o topology_manager.js consiga ler)
 window.SETORES = [
     { id: "PORTARIA", name: "Portaria", pos: { x: 21, z: 55 }, size: [3, 3, 3] },
-    { id: "BALANCA", name: "Balança", pos: { x: 9, z: 51 }, size: [4, 3, 4] },
-    { id: "PCTS", name: "PCTS", pos: { x: 7, z: 37 }, size: [3, 3, 3] },
-    { id: "COI", name: "COI", pos: { x: -9, z: -13 }, size: [5, 4, 5] },
-    { id: "VINHACA", name: "Vinhaça", pos: { x: -23, z: -28 }, size: [2, 2, 2] },
-    { id: "SUPERVISAO", name: "Supervisão", pos: { x: 10, z: -21 }, size: [8, 4, 8] },
-    { id: "OLD", name: "OLD", pos: { x: 36, z: 0 }, size: [3, 3, 10] },
-    { id: "CPD", name: "CPD", pos: { x: 40, z: 22 }, type: 'L', size: [8, 6, 4] },
-    { id: "REFEITORIO", name: "Refeitório", pos: { x: 40, z: 32 }, size: [6, 3, 5] }
+  { id: "BALANCA", name: "Balança", pos: { x: 12, z: 51 }, size: [4, 3, 4] },
+  { id: "PCTS", name: "PCTS", pos: { x: 7, z: 38 }, size: [3.2, 3, 4] },
+  { id: "COI", name: "COI", pos: { x: 10, z: -11 }, size: [6, 4, 4] },
+  { id: "CCM", name: "CCM", pos: { x: -22.7, z: -27 }, size: [3, 2, 2] },
+  { id: "OBEYA", name: "OBEYA", pos: { x: 20, z: -20 }, size: [6, 4, 7] },
+  { id: "OLD", name: "OLD", pos: { x: 36, z: -2 }, size: [2, 4, 7] },
+  { id: "ADM", name: "ADM", pos: { x: 38, z: 24 }, size: [3, 4, 5] },
+  { id: "REFEITORIO", name: "Refeitório", pos: { x: 39, z: 31.8 }, size: [2.7, 3, 4] }
 ];
 // Atalho local para facilitar leitura do código
 const SETORES = window.SETORES;
@@ -284,14 +284,21 @@ function updateVisuals(serverData) {
     });
 
     cables.forEach(obj => {
-        if(obj.userData.isCable) {
-            const fs = statusMap[obj.userData.from]?.status;
-            const ts = statusMap[obj.userData.to]?.status;
-            if (fs === 'CRITICAL' || ts === 'CRITICAL') obj.material.color.setHex(0xff0000); 
-            else if (fs === 'WARNING' || ts === 'WARNING') obj.material.color.setHex(0xffaa00);
-            else obj.material.color.setHex(0x0ea5e9);
+    if (obj.userData.isCable) {
+        const fs = statusMap[obj.userData.from]?.status;
+        const ts = statusMap[obj.userData.to]?.status;
+
+        // 🔴 Fibra só reflete CRITICAL
+        if (fs === 'CRITICAL' || ts === 'CRITICAL') {
+            obj.material.color.setHex(0xff0000);
+        } 
+        // 🔵 WARNING NÃO altera fibra
+        else {
+            obj.material.color.setHex(0x0ea5e9);
         }
-    });
+    }
+});
+
 
     const statusDot = document.getElementById('status-dot');
     const globalText = document.getElementById('global-text');

@@ -7,7 +7,7 @@ const AVAILABLE_SECTORS = [
     { id: 'BALANCA', name: 'Balança' },
     { id: 'PCTS', name: 'PCTS' },
     { id: 'COI', name: 'COI' },
-    { id: 'SUPERVISAO', name: 'Supervisão' },
+    { id: 'OBEYA', name: 'OBEYA' },
     { id: 'VINHACA', name: 'Vinhaça' },
     { id: 'OLD', name: 'OLD' },
     { id: 'ADM', name: 'Administrativo' },
